@@ -1,103 +1,151 @@
-import Image from "next/image";
+// page.tsx
+'use client'
+
+import { useState, useCallback, useEffect } from 'react';
+import { PDF } from "./components/pdf";
+import SignPreview from "./components/Signer";
+import { addSignatureToPdf } from './utils/pdfUtils';
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const initialPdfUrl = "/sample.pdf";
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [currentPdfUrl, setCurrentPdfUrl] = useState(initialPdfUrl);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [signaturePlacement, setSignaturePlacement] = useState<{ x: number; y: number; pageNumber: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [currentPageNum, setCurrentPageNum] = useState(1);
+  const [totalPdfPages, setTotalPdfPages] = useState(1);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [objectUrl]);
+
+  const handleSignatureSave = useCallback((dataUrl: string | null) => {
+    setSignatureDataUrl(dataUrl);
+    if (dataUrl) {
+      alert('Signature saved! Now click on the PDF to place it.');
+    } else {
+      alert('Signature cleared.');
+    }
+  }, []);
+
+  const handlePdfInteraction = useCallback((params: {
+    clientX?: number;
+    clientY?: number;
+    pageNumber: number;
+    renderedPageWidth?: number;
+    renderedPageHeight?: number;
+    originalPdfPageWidth?: number;
+    originalPdfPageHeight?: number; // Corrected parameter name here
+  }) => {
+    if (params.pageNumber !== currentPageNum) {
+      setCurrentPageNum(params.pageNumber);
+      setSignaturePlacement(null);
+      return;
+    }
+
+    if (params.clientX !== undefined && params.clientY !== undefined && signatureDataUrl && params.renderedPageWidth && params.originalPdfPageWidth) {
+      // Corrected destructuring here: use originalPdfPageHeight
+      const { clientX, clientY, renderedPageWidth, renderedPageHeight, originalPdfPageWidth, originalPdfPageHeight } = params;
+
+      const scaleX = originalPdfPageWidth / renderedPageWidth;
+      const scaleY = originalPdfPageHeight / renderedPageHeight; // Now uses the correctly destructured variable
+
+      const pdfX = clientX * scaleX;
+      const pdfY = (renderedPageHeight - clientY) * scaleY;
+
+      setSignaturePlacement({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
+      alert(`Signature will be placed on Page ${currentPageNum} at X: ${Math.round(pdfX)}, Y: ${Math.round(pdfY)}. Click 'Apply' to confirm.`);
+    } else if (signatureDataUrl === null) {
+      alert('Please draw and save your signature first using the signature pad.');
+    }
+  }, [currentPageNum, signatureDataUrl]);
+
+  const handleDocumentLoadSuccess = useCallback((numPages: number) => {
+      setTotalPdfPages(numPages);
+  }, []);
+
+  const handleApplySignature = async () => {
+    if (!signatureDataUrl) {
+      alert('Please draw and save your signature.');
+      return;
+    }
+    if (!signaturePlacement) {
+      alert('Please click on the PDF to choose where to place the signature.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      console.log("Applying signature to PDF...");
+      const modifiedPdfBytes = await addSignatureToPdf(
+        currentPdfUrl,
+        signatureDataUrl,
+        signaturePlacement.x,
+        signaturePlacement.y,
+        signaturePlacement.pageNumber,
+        150,
+        75
+      );
+
+      const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+      const newObjectUrl = URL.createObjectURL(blob);
+
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+      setObjectUrl(newObjectUrl);
+
+      setCurrentPdfUrl(newObjectUrl);
+
+      setSignaturePlacement(null);
+      setSignatureDataUrl(null);
+      alert('Signature applied and PDF updated successfully! Viewing the modified document.');
+
+    } catch (error) {
+      console.error('Failed to apply signature:', error);
+      alert('Failed to apply signature. Check console for details.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="">
+      <h1>PDF here !</h1>
+
+      <div className="flex justify-center items-center">
+        <div>
+          <PDF
+            pdfUrl={currentPdfUrl}
+            onPageClick={handlePdfInteraction}
+            currentPageNumber={currentPageNum}
+            onDocumentLoadSuccess={handleDocumentLoadSuccess}
+          />
+
+          <SignPreview onSignatureSave={handleSignatureSave} />
+
+          <div className="mt-6 text-center">
+            {signaturePlacement && (
+              <p className="mb-4 text-blue-600 font-medium">
+                Signature selected for Page {signaturePlacement.pageNumber} at X: {Math.round(signaturePlacement.x)}, Y: {Math.round(signaturePlacement.y)}.
+              </p>
+            )}
+            <button
+              onClick={handleApplySignature}
+              disabled={loading || !signatureDataUrl || !signaturePlacement}
+              className="px-8 py-4 bg-green-600 text-white font-semibold rounded-lg shadow-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition duration-300"
+            >
+              {loading ? 'Processing...' : 'Apply Signature & Update PDF'}
+            </button>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
     </div>
   );
 }
