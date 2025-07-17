@@ -6,9 +6,6 @@ import SignPreview from "./components/Signer";
 import { addSignatureToPdf } from './utils/pdfUtils';
 
 export default function Home() {
-  // here is the file path , we also use pdf from anywhere around the internet ! 
-  // I'm working on a feature where user uploads their pdf to aws s3 and from that it fetches the url and displayed to the user to sign the contract / pdf 
-  // but for test case I'm using a sample.pdf ! 
 
   const initialPdfUrl = "/sample.pdf";
 
@@ -48,41 +45,54 @@ export default function Home() {
     renderedPageHeight?: number;
     originalPdfPageWidth?: number;
     originalPdfPageHeight?: number;
-    eventType: 'click' | 'mousemove'; // Add eventType
+    eventType: 'click' | 'mousemove';
   }) => {
     if (params.pageNumber !== currentPageNum) {
       setCurrentPageNum(params.pageNumber);
       setSignaturePlacement(null);
-      setLiveSignaturePreview(null); // Clear preview on page change
+      setLiveSignaturePreview(null);
       return;
     }
 
-    // Also this one 
-    if (signatureDataUrl && params.renderedPageWidth && params.originalPdfPageWidth) {
-        const { clientX, clientY, renderedPageWidth, renderedPageHeight, originalPdfPageWidth, originalPdfPageHeight } = params;
+    // Ensure all required values are defined before using them
+    if (
+      signatureDataUrl &&
+      params.renderedPageWidth !== undefined &&
+      params.originalPdfPageWidth !== undefined &&
+      params.renderedPageHeight !== undefined &&
+      params.originalPdfPageHeight !== undefined &&
+      params.clientX !== undefined &&
+      params.clientY !== undefined
+    ) {
+      const {
+        clientX,
+        clientY,
+        renderedPageWidth,
+        renderedPageHeight,
+        originalPdfPageWidth,
+        originalPdfPageHeight,
+      } = params;
 
-        const scaleX = originalPdfPageWidth / renderedPageWidth;
-        const scaleY = originalPdfPageHeight / renderedPageHeight; 
+      const scaleX = originalPdfPageWidth / renderedPageWidth;
+      const scaleY = originalPdfPageHeight / renderedPageHeight;
 
-        // Adjust Y-coordinate for PDF coordinate system (origin at bottom-left)
-        const pdfX = clientX * scaleX;
-        // The signature image's bottom-left corner should be at pdfY.
-        // If the click Y is relative to the top of the *rendered* page, then:
-        // Y coordinate in PDF is (rendered page height - click Y on rendered page) * scaleY
-        const pdfY = (renderedPageHeight - clientY) * scaleY;
+      // Adjust Y-coordinate for PDF coordinate system (origin at bottom-left)
+      const pdfX = clientX * scaleX;
+      const pdfY = (renderedPageHeight - clientY) * scaleY;
 
-        if (params.eventType === 'click') {
-            setSignaturePlacement({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
-            alert(`Signature will be placed on Page ${currentPageNum} at X: ${Math.round(pdfX)}, Y: ${Math.round(pdfY)}. Click 'Apply' to confirm.`);
-            setLiveSignaturePreview(null); // Clear live preview after click
-        } else if (params.eventType === 'mousemove') {
-            setLiveSignaturePreview({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
-        }
-    } else if (signatureDataUrl === null) {
-      // Only show alert if it's a click and no signature is drawn
       if (params.eventType === 'click') {
-        alert('Please draw and save your signature first using the signature pad.');
+        setSignaturePlacement({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
+        alert(
+          `Signature will be placed on Page ${currentPageNum} at X: ${Math.round(
+            pdfX
+          )}, Y: ${Math.round(pdfY)}. Click 'Apply' to confirm.`
+        );
+        setLiveSignaturePreview(null);
+      } else if (params.eventType === 'mousemove') {
+        setLiveSignaturePreview({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
       }
+    } else if (signatureDataUrl === null && params.eventType === 'click') {
+      alert('Please draw and save your signature first using the signature pad.');
     }
   }, [currentPageNum, signatureDataUrl]);
 
@@ -109,7 +119,6 @@ export default function Home() {
     setLoading(true);
     try {
       console.log("Applying signature to PDF...");
-      // might some modification here or ! 
       const modifiedPdfBytes = await addSignatureToPdf(
         currentPdfUrl,
         signatureDataUrl,
@@ -120,20 +129,30 @@ export default function Home() {
         75   // height for signature in PDF
       );
 
-      const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+      // Ensure Blob receives an ArrayBuffer, not ArrayBufferLike/SharedArrayBuffer
+      let blobPart: BlobPart;
+      if (modifiedPdfBytes instanceof Uint8Array) {
+        // If buffer is not an ArrayBuffer, copy to a new ArrayBuffer
+        if (modifiedPdfBytes.buffer instanceof ArrayBuffer) {
+          blobPart = modifiedPdfBytes.buffer;
+        } else {
+          blobPart = new Uint8Array(modifiedPdfBytes).buffer;
+        }
+      } else {
+        blobPart = modifiedPdfBytes;
+      }
+      const blob = new Blob([blobPart], { type: 'application/pdf' });
       const newObjectUrl = URL.createObjectURL(blob);
 
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
       setObjectUrl(newObjectUrl);
-
       setCurrentPdfUrl(newObjectUrl);
 
       setSignaturePlacement(null);
       setSignatureDataUrl(null);
       alert('Signature applied and PDF updated successfully! Viewing the modified document.');
-
     } catch (error) {
       console.error('Failed to apply signature:', error);
       alert('Failed to apply signature. Check console for details.');
