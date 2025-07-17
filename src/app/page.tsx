@@ -11,6 +11,8 @@ export default function Home() {
   const [currentPdfUrl, setCurrentPdfUrl] = useState(initialPdfUrl);
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
   const [signaturePlacement, setSignaturePlacement] = useState<{ x: number; y: number; pageNumber: number } | null>(null);
+  // New state for live preview position
+  const [liveSignaturePreview, setLiveSignaturePreview] = useState<{ x: number; y: number; pageNumber: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const [totalPdfPages, setTotalPdfPages] = useState(1);
@@ -27,9 +29,10 @@ export default function Home() {
   const handleSignatureSave = useCallback((dataUrl: string | null) => {
     setSignatureDataUrl(dataUrl);
     if (dataUrl) {
-      alert('Signature saved! Now click on the PDF to place it.');
+      alert('Signature saved! Now click on the PDF to place it, or move your mouse over the PDF to preview.');
     } else {
       alert('Signature cleared.');
+      setLiveSignaturePreview(null); // Clear preview if signature is cleared
     }
   }, []);
 
@@ -41,33 +44,52 @@ export default function Home() {
     renderedPageHeight?: number;
     originalPdfPageWidth?: number;
     originalPdfPageHeight?: number;
+    eventType: 'click' | 'mousemove'; // Add eventType
   }) => {
     if (params.pageNumber !== currentPageNum) {
       setCurrentPageNum(params.pageNumber);
       setSignaturePlacement(null);
+      setLiveSignaturePreview(null); // Clear preview on page change
       return;
     }
 
-    if (params.clientX !== undefined && params.clientY !== undefined && signatureDataUrl && params.renderedPageWidth && params.originalPdfPageWidth) {
-    
-      const { clientX, clientY, renderedPageWidth, renderedPageHeight, originalPdfPageWidth, originalPdfPageHeight } = params;
+    if (signatureDataUrl && params.renderedPageWidth && params.originalPdfPageWidth) {
+        const { clientX, clientY, renderedPageWidth, renderedPageHeight, originalPdfPageWidth, originalPdfPageHeight } = params;
 
-      const scaleX = originalPdfPageWidth / renderedPageWidth;
-      const scaleY = originalPdfPageHeight / renderedPageHeight; 
+        const scaleX = originalPdfPageWidth / renderedPageWidth;
+        const scaleY = originalPdfPageHeight / renderedPageHeight; 
 
-      const pdfX = clientX * scaleX;
-      const pdfY = (renderedPageHeight - clientY) * scaleY;
+        // Adjust Y-coordinate for PDF coordinate system (origin at bottom-left)
+        const pdfX = clientX * scaleX;
+        // The signature image's bottom-left corner should be at pdfY.
+        // If the click Y is relative to the top of the *rendered* page, then:
+        // Y coordinate in PDF is (rendered page height - click Y on rendered page) * scaleY
+        const pdfY = (renderedPageHeight - clientY) * scaleY;
 
-      setSignaturePlacement({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
-      alert(`Signature will be placed on Page ${currentPageNum} at X: ${Math.round(pdfX)}, Y: ${Math.round(pdfY)}. Click 'Apply' to confirm.`);
+        if (params.eventType === 'click') {
+            setSignaturePlacement({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
+            alert(`Signature will be placed on Page ${currentPageNum} at X: ${Math.round(pdfX)}, Y: ${Math.round(pdfY)}. Click 'Apply' to confirm.`);
+            setLiveSignaturePreview(null); // Clear live preview after click
+        } else if (params.eventType === 'mousemove') {
+            setLiveSignaturePreview({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
+        }
     } else if (signatureDataUrl === null) {
-      alert('Please draw and save your signature first using the signature pad.');
+      // Only show alert if it's a click and no signature is drawn
+      if (params.eventType === 'click') {
+        alert('Please draw and save your signature first using the signature pad.');
+      }
     }
   }, [currentPageNum, signatureDataUrl]);
 
   const handleDocumentLoadSuccess = useCallback((numPages: number) => {
       setTotalPdfPages(numPages);
   }, []);
+
+  // Clear live preview when mouse leaves PDF area
+  const handlePdfMouseLeave = useCallback(() => {
+    setLiveSignaturePreview(null);
+  }, []);
+
 
   const handleApplySignature = async () => {
     if (!signatureDataUrl) {
@@ -88,8 +110,8 @@ export default function Home() {
         signaturePlacement.x,
         signaturePlacement.y,
         signaturePlacement.pageNumber,
-        150,
-        75
+        150, // width for signature in PDF
+        75   // height for signature in PDF
       );
 
       const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
@@ -116,15 +138,19 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
-     
+      <h1 className="text-2xl font-bold mb-4">PDF Signer</h1>
 
       <div className="flex flex-col md:flex-row items-center md:items-start justify-center w-full max-w-screen-xl gap-4">
         <div className="flex-1 min-w-0">
           <PDF
             pdfUrl={currentPdfUrl}
             onPageClick={handlePdfInteraction}
+            onPageMouseMove={handlePdfInteraction} // Pass for mousemove
+            onPageMouseLeave={handlePdfMouseLeave} // Pass for mouseleave
             currentPageNumber={currentPageNum}
             onDocumentLoadSuccess={handleDocumentLoadSuccess}
+            signatureDataUrl={signatureDataUrl} // Pass signatureDataUrl
+            liveSignaturePreview={liveSignaturePreview} // Pass live preview coordinates
           />
         </div>
 
