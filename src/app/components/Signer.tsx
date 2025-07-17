@@ -1,9 +1,8 @@
-// components/Signer.tsx
 'use client'
 
 import Image from "next/image";
-import { useState, useCallback } from "react"; // Added useCallback
-import SignatureCanvas from "../components/react-signature-canvas/index"; // Assuming this path is correct
+import { useState, useCallback } from "react"; 
+import SignatureCanvas from "../components/react-signature-canvas/index";
 
 // Define props for SignPreview component
 interface SignPreviewProps {
@@ -11,26 +10,26 @@ interface SignPreviewProps {
 }
 
 export default function SignPreview({ onSignatureSave }: SignPreviewProps) {
-  const [signaturePad, setSignaturePad] = useState<any>(null); // State to hold the SignatureCanvas instance
-  const [savedSignatureUrl, setSavedSignatureUrl] = useState<string>(""); // State to hold the saved Data URL
+  const [signaturePad, setSignaturePad] = useState<any>(null); 
+  const [savedSignatureUrl, setSavedSignatureUrl] = useState<string>(""); 
 
-  // Callback to clear the signature pad
+  
   const handleClear = useCallback(() => {
     if (signaturePad) {
       signaturePad.clear();
-      setSavedSignatureUrl(""); // Clear saved URL as well
-      onSignatureSave(null); // Notify parent that signature is cleared
+      setSavedSignatureUrl(""); 
+      onSignatureSave(null);
     }
   }, [signaturePad, onSignatureSave]);
 
   // Callback to save the signature
   const handleSave = useCallback(() => {
     if (signaturePad) {
-      // Ensure the canvas is not empty before saving
+     
       if (!signaturePad.isEmpty()) {
         const dataUrl = signaturePad.getTrimmedCanvas().toDataURL('image/png');
         setSavedSignatureUrl(dataUrl);
-        onSignatureSave(dataUrl); // Pass the data URL to the parent
+        onSignatureSave(dataUrl); 
       } else {
         alert("Please draw your signature before saving.");
       }
@@ -44,7 +43,7 @@ export default function SignPreview({ onSignatureSave }: SignPreviewProps) {
         <SignatureCanvas
           penColor="white"
           backgroundColor="black"
-          canvasProps={{ width: 350, height: 150, className: 'sigCanvas' }} // Adjusted size for better fit in sidebar
+          canvasProps={{ width: 250, height: 150, className: 'sigCanvas' }}
           ref={data => setSignaturePad(data)}
         />
       </div>

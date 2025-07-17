@@ -1,4 +1,3 @@
-// components/pdf.tsx
 'use client'
 
 import { useState, useCallback, useRef } from 'react';
@@ -67,7 +66,7 @@ export const PDF = ({
             return;
         }
 
-        const rect = pageRef.current.getBoundingClientRect(); // Get dimensions of the rendered PDF page element
+        const rect = pageRef.current.getBoundingClientRect(); 
         const clientX = event.clientX - rect.left;
         const clientY = event.clientY - rect.top;
 
@@ -86,9 +85,7 @@ export const PDF = ({
 
     return (
         <div className="p-4  bg-gray-100 font-inter">
-            <h1 className="text-3xl font-bold text-gray-800 mb-6 rounded-md p-2 bg-white shadow-md">
-                PDF Viewer
-            </h1>
+            
 
             <div className="w-full max-w-4xl bg-white rounded-lg shadow-xl p-6 flex flex-col items-center">
                 {isLoading && (
@@ -101,12 +98,12 @@ export const PDF = ({
 
                 <div
                     className="border border-gray-300 rounded-md overflow-hidden"
-                    onClick={handlePageClick} // Attach click handler here
-                    style={{ cursor: 'copy' }} // Indicate it's clickable
-                    ref={pageRef} // Attach ref to get rendered dimensions
+                    onClick={handlePageClick} 
+                    style={{ cursor: 'copy' }} 
+                    ref={pageRef} 
                 >
 
-                    {pdfjs && pdfUrl && ( // Ensure pdfUrl is provided
+                    {pdfjs && pdfUrl && ( 
                         <Document
                             file={pdfUrl}
                             onLoadSuccess={onDocumentSuccess}
@@ -115,11 +112,11 @@ export const PDF = ({
                             className="w-full h-auto"
                         >
                             <Page
-                                pageNumber={currentPageNumber} // Use currentPageNumber prop
+                                pageNumber={currentPageNumber}
                                 width={Math.min(maxWidth, window.innerWidth * 0.9)}
                                 renderAnnotationLayer={false}
                                 renderTextLayer={false}
-                                onRenderSuccess={onPageRenderSuccess} // Get original page dimensions
+                                onRenderSuccess={onPageRenderSuccess} 
                             />
                         </Document>
                     )}

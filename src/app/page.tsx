@@ -1,4 +1,3 @@
-// page.tsx
 'use client'
 
 import { useState, useCallback, useEffect } from 'react';
@@ -41,7 +40,7 @@ export default function Home() {
     renderedPageWidth?: number;
     renderedPageHeight?: number;
     originalPdfPageWidth?: number;
-    originalPdfPageHeight?: number; // Corrected parameter name here
+    originalPdfPageHeight?: number;
   }) => {
     if (params.pageNumber !== currentPageNum) {
       setCurrentPageNum(params.pageNumber);
@@ -50,11 +49,11 @@ export default function Home() {
     }
 
     if (params.clientX !== undefined && params.clientY !== undefined && signatureDataUrl && params.renderedPageWidth && params.originalPdfPageWidth) {
-      // Corrected destructuring here: use originalPdfPageHeight
+    
       const { clientX, clientY, renderedPageWidth, renderedPageHeight, originalPdfPageWidth, originalPdfPageHeight } = params;
 
       const scaleX = originalPdfPageWidth / renderedPageWidth;
-      const scaleY = originalPdfPageHeight / renderedPageHeight; // Now uses the correctly destructured variable
+      const scaleY = originalPdfPageHeight / renderedPageHeight; 
 
       const pdfX = clientX * scaleX;
       const pdfY = (renderedPageHeight - clientY) * scaleY;
@@ -116,30 +115,32 @@ export default function Home() {
   };
 
   return (
-    <div className="">
-      <h1>PDF here !</h1>
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+     
 
-      <div className="flex justify-center items-center">
-        <div>
+      <div className="flex flex-col md:flex-row items-center md:items-start justify-center w-full max-w-screen-xl gap-4">
+        <div className="flex-1 min-w-0">
           <PDF
             pdfUrl={currentPdfUrl}
             onPageClick={handlePdfInteraction}
             currentPageNumber={currentPageNum}
             onDocumentLoadSuccess={handleDocumentLoadSuccess}
           />
+        </div>
 
+        <div className="flex-none w-full md:w-80 p-4 bg-gray-100 rounded-lg shadow-md">
           <SignPreview onSignatureSave={handleSignatureSave} />
 
           <div className="mt-6 text-center">
             {signaturePlacement && (
-              <p className="mb-4 text-blue-600 font-medium">
+              <p className="mb-4 text-blue-600 font-medium text-sm">
                 Signature selected for Page {signaturePlacement.pageNumber} at X: {Math.round(signaturePlacement.x)}, Y: {Math.round(signaturePlacement.y)}.
               </p>
             )}
             <button
               onClick={handleApplySignature}
               disabled={loading || !signatureDataUrl || !signaturePlacement}
-              className="px-8 py-4 bg-green-600 text-white font-semibold rounded-lg shadow-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition duration-300"
+              className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition duration-300 w-full"
             >
               {loading ? 'Processing...' : 'Apply Signature & Update PDF'}
             </button>
