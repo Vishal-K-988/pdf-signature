@@ -6,6 +6,10 @@ import SignPreview from "./components/Signer";
 import { addSignatureToPdf } from './utils/pdfUtils';
 
 export default function Home() {
+  // here is the file path , we also use pdf from anywhere around the internet ! 
+  // I'm working on a feature where user uploads their pdf to aws s3 and from that it fetches the url and displayed to the user to sign the contract / pdf 
+  // but for test case I'm using a sample.pdf ! 
+
   const initialPdfUrl = "/sample.pdf";
 
   const [currentPdfUrl, setCurrentPdfUrl] = useState(initialPdfUrl);
@@ -53,6 +57,7 @@ export default function Home() {
       return;
     }
 
+    // Also this one 
     if (signatureDataUrl && params.renderedPageWidth && params.originalPdfPageWidth) {
         const { clientX, clientY, renderedPageWidth, renderedPageHeight, originalPdfPageWidth, originalPdfPageHeight } = params;
 
@@ -104,6 +109,7 @@ export default function Home() {
     setLoading(true);
     try {
       console.log("Applying signature to PDF...");
+      // might some modification here or ! 
       const modifiedPdfBytes = await addSignatureToPdf(
         currentPdfUrl,
         signatureDataUrl,
