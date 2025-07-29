@@ -1,23 +1,24 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
 import Image from 'next/image'; // Import Image component
+import dynamic from 'next/dynamic';
 
 const Document = dynamic(
-  () => import('react-pdf').then((mod) => mod.Document),
-  { ssr: false }
+    () => import('react-pdf').then((mod) => mod.Document),
+    { ssr: false }
 );
 
 const Page = dynamic(
-  () => import('react-pdf').then((mod) => mod.Page),
-  { ssr: false }
+    () => import('react-pdf').then((mod) => mod.Page),
+    { ssr: false }
 );
 
-let pdfjs;
+let pdfjs: any;
 if (typeof window !== 'undefined') {
-  pdfjs = require('react-pdf').pdfjs;
-  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    pdfjs = require('react-pdf').pdfjs;
+    pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 }
 
 const options = {
@@ -26,6 +27,18 @@ const options = {
 };
 
 const maxWidth = 800;
+
+interface PDFProps {
+    pdfUrl: string;
+    onPageClick: (params: any) => void;
+    onPageMouseMove: (params: any) => void;
+    onPageMouseLeave: () => void;
+    currentPageNumber: number;
+    onDocumentLoadSuccess: (numPages: number) => void;
+    signatureDataUrl: string | null;
+    liveSignaturePreview: { x: number; y: number; pageNumber: number } | null;
+    onPageDimensionsChange?: (dimensions: { width: number; height: number }) => void;
+}
 
 export const PDF = ({
     pdfUrl,
@@ -36,8 +49,9 @@ export const PDF = ({
     onDocumentLoadSuccess,
     signatureDataUrl, // New prop
     liveSignaturePreview, // New prop
-}) => {
-    const [numPages, setNumPages] = useState(null)
+    onPageDimensionsChange, // New prop
+}: PDFProps) => {
+    const [numPages, setNumPages] = useState<number | null>(null)
     const [isLoading, setIsLoading] = useState(true);
     const pageRef = useRef<HTMLDivElement>(null); // Ref to the div containing the Page component
 
@@ -45,26 +59,31 @@ export const PDF = ({
     const [renderedPageDimensions, setRenderedPageDimensions] = useState<{ width: number; height: number } | null>(null);
 
 
-    const onDocumentSuccess = useCallback(({ numPages }) => {
-      setNumPages(numPages);
-      setIsLoading(false);
-      if (onDocumentLoadSuccess) {
-          onDocumentLoadSuccess(numPages);
-      }
+    const onDocumentSuccess = useCallback(({ numPages }: { numPages: number }) => {
+        setNumPages(numPages);
+        setIsLoading(false);
+        if (onDocumentLoadSuccess) {
+            onDocumentLoadSuccess(numPages);
+        }
     }, [onDocumentLoadSuccess]);
 
-    const onDocumentError = useCallback((error) => {
+    const onDocumentError = useCallback((error: any) => {
         console.error('Error loading PDF document:', error);
         setIsLoading(false);
     }, []);
 
-    const onPageRenderSuccess = useCallback((page) => {
-        setOriginalPdfPageDimensions({ width: page.width, height: page.height });
+    const onPageRenderSuccess = useCallback((page: any) => {
+        const dimensions = { width: page.width, height: page.height };
+        setOriginalPdfPageDimensions(dimensions);
         // Store the rendered dimensions as well
         if (pageRef.current) {
             setRenderedPageDimensions({ width: pageRef.current.offsetWidth, height: pageRef.current.offsetHeight });
         }
-    }, []);
+        // Notify parent of page dimensions
+        if (onPageDimensionsChange) {
+            onPageDimensionsChange(dimensions);
+        }
+    }, [onPageDimensionsChange]);
 
     // Effect to update renderedPageDimensions if window resizes
     useEffect(() => {
@@ -82,7 +101,7 @@ export const PDF = ({
             return null;
         }
 
-        const rect = pageRef.current.getBoundingClientRect(); 
+        const rect = pageRef.current.getBoundingClientRect();
         const clientX = event.clientX - rect.left;
         const clientY = event.clientY - rect.top;
 
@@ -130,7 +149,7 @@ export const PDF = ({
             // signaturePreview.x and y are in PDF coordinates (origin bottom-left).
             // To position on rendered HTML, we need to convert to top-left origin for CSS 'top' and 'left'.
             // The signature is 150px wide and 75px high (as passed to addSignatureToPdf)
-            const signatureWidthInPdf = 150; 
+            const signatureWidthInPdf = 150;
             const signatureHeightInPdf = 75;
 
             // Calculate 'left' position:
@@ -138,16 +157,16 @@ export const PDF = ({
 
             // Calculate 'top' position:
             // PDF Y is from bottom. Rendered Y (top) is from top.
-            // (Original PDF height - PDF Y coordinate) * scaleY - signature image height
-            const topPx = (originalPdfPageDimensions.height - liveSignaturePreview.y) * scaleY - (signatureHeightInPdf * scaleY);
-
+            // Since we subtracted signatureHeightInPdf from the PDF Y coordinate,
+            // we need to add it back when converting to rendered coordinates
+            const topPx = (originalPdfPageDimensions.height - liveSignaturePreview.y - signatureHeightInPdf) * scaleY;
 
             return {
                 position: 'absolute' as const,
                 left: `${leftPx}px`,
                 top: `${topPx}px`,
                 // Set the size of the preview image to match the eventual placed size
-                width: `${signatureWidthInPdf * scaleX}px`, 
+                width: `${signatureWidthInPdf * scaleX}px`,
                 height: `${signatureHeightInPdf * scaleY}px`,
                 pointerEvents: 'none' as const, // Allows clicks to pass through to the PDF
                 opacity: 0.6, // Semi-transparent
@@ -170,13 +189,13 @@ export const PDF = ({
 
                 <div
                     className="border border-gray-300 rounded-md overflow-hidden relative" // Added relative for positioning
-                    onClick={handlePageClick} 
+                    onClick={handlePageClick}
                     onMouseMove={handlePageMouseMove} // Added mouse move handler
                     onMouseLeave={handlePageMouseLeave} // Added mouse leave handler
                     style={{ cursor: signatureDataUrl ? 'copy' : 'default' }} // Change cursor when signature is ready
-                    ref={pageRef} 
+                    ref={pageRef}
                 >
-                    {pdfjs && pdfUrl && ( 
+                    {pdfjs && pdfUrl && (
                         <Document
                             file={pdfUrl}
                             onLoadSuccess={onDocumentSuccess}
@@ -189,7 +208,7 @@ export const PDF = ({
                                 width={Math.min(maxWidth, window.innerWidth * 0.9)}
                                 renderAnnotationLayer={false}
                                 renderTextLayer={false}
-                                onRenderSuccess={onPageRenderSuccess} 
+                                onRenderSuccess={onPageRenderSuccess}
                             />
                         </Document>
                     )}
@@ -202,6 +221,23 @@ export const PDF = ({
                             style={livePreviewStyle}
                             width={150} // Base width for Image component (will be scaled by CSS)
                             height={75} // Base height for Image component (will be scaled by CSS)
+                        />
+                    )}
+
+                    {/* Debug: Show click position indicator */}
+                    {signatureDataUrl && liveSignaturePreview && liveSignaturePreview.pageNumber === currentPageNumber && renderedPageDimensions && originalPdfPageDimensions && (
+                        <div
+                            style={{
+                                position: 'absolute',
+                                left: `${liveSignaturePreview.x * renderedPageDimensions.width / originalPdfPageDimensions.width}px`,
+                                top: `${(originalPdfPageDimensions.height - liveSignaturePreview.y - 75) * renderedPageDimensions.height / originalPdfPageDimensions.height}px`,
+                                width: '4px',
+                                height: '4px',
+                                backgroundColor: 'red',
+                                borderRadius: '50%',
+                                pointerEvents: 'none',
+                                zIndex: 20,
+                            }}
                         />
                     )}
                 </div>
