@@ -3,8 +3,20 @@ import React, { Component } from 'react'
 import SignaturePad from 'signature_pad'
 import trimCanvas from 'trim-canvas'
 
+// Define the options interface that matches SignaturePad constructor
+interface SignaturePadOptions {
+  velocityFilterWeight?: number
+  minWidth?: number
+  maxWidth?: number
+  minDistance?: number
+  dotSize?: number | (() => number)
+  penColor?: string
+  throttle?: number
+  onEnd?: () => void
+  onBegin?: () => void
+}
 
-export interface SignatureCanvasProps extends SignaturePad.SignaturePadOptions {
+export interface SignatureCanvasProps extends SignaturePadOptions {
   canvasProps?: React.CanvasHTMLAttributes<HTMLCanvasElement>
   clearOnResize?: boolean
 }
@@ -47,7 +59,7 @@ export class SignatureCanvas extends Component<SignatureCanvasProps> {
     }
   }
 
-  _excludeOurProps = (): SignaturePad.SignaturePadOptions => {
+  _excludeOurProps = (): any => {
     const { canvasProps, clearOnResize, ...sigPadProps } = this.props
     return sigPadProps
   }
@@ -65,7 +77,9 @@ export class SignatureCanvas extends Component<SignatureCanvasProps> {
 
   // propagate prop updates to SignaturePad
   override componentDidUpdate: Component['componentDidUpdate'] = () => {
-    Object.assign(this._sigPad, this._excludeOurProps())
+    if (this._sigPad) {
+      Object.assign(this._sigPad, this._excludeOurProps())
+    }
   }
 
   // return the canvas ref for operations like toDataURL
@@ -158,7 +172,7 @@ export class SignatureCanvas extends Component<SignatureCanvasProps> {
     return this.getSignaturePad().fromDataURL(dataURL, options)
   }
 
-  toDataURL: SignaturePad['toDataURL'] = (type, encoderOptions) => {
+  toDataURL = (type?: any, encoderOptions?: any): string => {
     return this.getSignaturePad().toDataURL(type, encoderOptions)
   }
 

@@ -41,9 +41,13 @@ export default function SignPreview({ onSignatureSave }: SignPreviewProps) {
       <h2 className="text-xl font-semibold text-gray-700">Draw Your Signature</h2>
       <div className="border-2 ring-2 ring-emerald-500 bg-black rounded-md overflow-hidden">
         <SignatureCanvas
-          penColor="white"
-          backgroundColor="black"
-          canvasProps={{ width: 250, height: 150, className: 'sigCanvas' }}
+          penColor="black"
+          canvasProps={{ 
+            width: 250, 
+            height: 150, 
+            className: 'sigCanvas',
+            style: { backgroundColor: 'white' }
+          }}
           ref={data => setSignaturePad(data)}
         />
       </div>
