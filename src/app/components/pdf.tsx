@@ -15,12 +15,7 @@ const Page = dynamic(
     { ssr: false }
 );
 
-let pdfjs: any;
-if (typeof window !== 'undefined') {
-    pdfjs = require('react-pdf').pdfjs;
-    pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-}
-
+// Move pdfjs initialization to useEffect to avoid hydration issues
 const options = {
     cMapUrl: '/cmaps/',
     standardFontDataUrl: '/standard_fonts/',
@@ -53,11 +48,19 @@ export const PDF = ({
 }: PDFProps) => {
     const [numPages, setNumPages] = useState<number | null>(null)
     const [isLoading, setIsLoading] = useState(true);
+    const [isClient, setIsClient] = useState(false);
     const pageRef = useRef<HTMLDivElement>(null); // Ref to the div containing the Page component
 
     const [originalPdfPageDimensions, setOriginalPdfPageDimensions] = useState<{ width: number; height: number } | null>(null);
     const [renderedPageDimensions, setRenderedPageDimensions] = useState<{ width: number; height: number } | null>(null);
 
+    // Initialize client-side only code
+    useEffect(() => {
+        setIsClient(true);
+        // Initialize pdfjs only on client side
+        const pdfjs = require('react-pdf').pdfjs;
+        pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    }, []);
 
     const onDocumentSuccess = useCallback(({ numPages }: { numPages: number }) => {
         setNumPages(numPages);
@@ -175,6 +178,16 @@ export const PDF = ({
         })()
         : {};
 
+    // Don't render PDF content until client-side is ready
+    if (!isClient) {
+        return (
+            <div className="p-4 bg-gray-100 font-inter">
+                <div className="w-full max-w-4xl bg-white rounded-lg shadow-xl p-6 flex flex-col items-center">
+                    <div className="text-gray-600 text-lg mb-4">Loading PDF...</div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-4 bg-gray-100 font-inter">
@@ -195,7 +208,7 @@ export const PDF = ({
                     style={{ cursor: signatureDataUrl ? 'copy' : 'default' }} // Change cursor when signature is ready
                     ref={pageRef}
                 >
-                    {pdfjs && pdfUrl && (
+                    {pdfUrl && (
                         <Document
                             file={pdfUrl}
                             onLoadSuccess={onDocumentSuccess}
