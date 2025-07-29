@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+
 import { PDF } from "./components/pdf";
 import SignPreview from "./components/Signer";
 import { addSignatureToPdf } from './utils/pdfUtils';
@@ -21,6 +22,7 @@ export default function Home() {
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const [totalPdfPages, setTotalPdfPages] = useState(1);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [reactPdfDimensions, setReactPdfDimensions] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -58,26 +60,40 @@ export default function Home() {
     }
 
     // Also this one 
-    if (signatureDataUrl && params.renderedPageWidth && params.originalPdfPageWidth) {
-        const { clientX, clientY, renderedPageWidth, renderedPageHeight, originalPdfPageWidth, originalPdfPageHeight } = params;
+    if (signatureDataUrl && params.renderedPageWidth && params.originalPdfPageWidth &&
+      params.renderedPageHeight && params.originalPdfPageHeight &&
+      params.clientX !== undefined && params.clientY !== undefined) {
+      const { clientX, clientY, renderedPageWidth, renderedPageHeight, originalPdfPageWidth, originalPdfPageHeight } = params;
 
-        const scaleX = originalPdfPageWidth / renderedPageWidth;
-        const scaleY = originalPdfPageHeight / renderedPageHeight; 
+      const scaleX = originalPdfPageWidth / renderedPageWidth;
+      const scaleY = originalPdfPageHeight / renderedPageHeight;
 
-        // Adjust Y-coordinate for PDF coordinate system (origin at bottom-left)
-        const pdfX = clientX * scaleX;
-        // The signature image's bottom-left corner should be at pdfY.
-        // If the click Y is relative to the top of the *rendered* page, then:
-        // Y coordinate in PDF is (rendered page height - click Y on rendered page) * scaleY
-        const pdfY = (renderedPageHeight - clientY) * scaleY;
+      // Convert browser coordinates to PDF coordinates
+      const pdfX = clientX * scaleX;
 
-        if (params.eventType === 'click') {
-            setSignaturePlacement({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
-            alert(`Signature will be placed on Page ${currentPageNum} at X: ${Math.round(pdfX)}, Y: ${Math.round(pdfY)}. Click 'Apply' to confirm.`);
-            setLiveSignaturePreview(null); // Clear live preview after click
-        } else if (params.eventType === 'mousemove') {
-            setLiveSignaturePreview({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
-        }
+      // For Y coordinate: browser (top-left) to PDF (bottom-left)
+      // We want the signature's bottom-left corner at the click point
+      // So we need to subtract the signature height from the Y coordinate
+      const signatureHeightInPdf = 75;
+      const pdfY = (renderedPageHeight - clientY) * scaleY - signatureHeightInPdf;
+
+      if (params.eventType === 'click') {
+        setSignaturePlacement({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
+        console.log('Coordinate conversion debug:', {
+          browserCoords: { x: clientX, y: clientY },
+          renderedDimensions: { width: renderedPageWidth, height: renderedPageHeight },
+          originalDimensions: { width: originalPdfPageWidth, height: originalPdfPageHeight },
+          scales: { scaleX, scaleY },
+          pdfCoords: { x: pdfX, y: pdfY },
+          signatureHeight: 75,
+          signatureBottomY: pdfY + 75, // Where the signature bottom will be
+          clickPointInPdf: { x: pdfX, y: pdfY + 75 } // The actual click point in PDF coordinates
+        });
+        alert(`Signature will be placed on Page ${currentPageNum} at X: ${Math.round(pdfX)}, Y: ${Math.round(pdfY)}. Click 'Apply' to confirm.`);
+        setLiveSignaturePreview(null); // Clear live preview after click
+      } else if (params.eventType === 'mousemove') {
+        setLiveSignaturePreview({ x: pdfX, y: pdfY, pageNumber: currentPageNum });
+      }
     } else if (signatureDataUrl === null) {
       // Only show alert if it's a click and no signature is drawn
       if (params.eventType === 'click') {
@@ -87,7 +103,7 @@ export default function Home() {
   }, [currentPageNum, signatureDataUrl]);
 
   const handleDocumentLoadSuccess = useCallback((numPages: number) => {
-      setTotalPdfPages(numPages);
+    setTotalPdfPages(numPages);
   }, []);
 
   // Clear live preview when mouse leaves PDF area
@@ -108,8 +124,14 @@ export default function Home() {
 
     setLoading(true);
     try {
-      console.log("Applying signature to PDF...");
+
       // might some modification here or ! 
+      if (!reactPdfDimensions) {
+        // TODO: add custom alert, if tthe PDF dimensions are not available
+        alert('PDF dimensions not available. Please try again.');
+        return;
+      }
+
       const modifiedPdfBytes = await addSignatureToPdf(
         currentPdfUrl,
         signatureDataUrl,
@@ -117,7 +139,8 @@ export default function Home() {
         signaturePlacement.y,
         signaturePlacement.pageNumber,
         150, // width for signature in PDF
-        75   // height for signature in PDF
+        75,   // height for signature in PDF
+        reactPdfDimensions
       );
 
       const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
@@ -157,6 +180,7 @@ export default function Home() {
             onDocumentLoadSuccess={handleDocumentLoadSuccess}
             signatureDataUrl={signatureDataUrl} // Pass signatureDataUrl
             liveSignaturePreview={liveSignaturePreview} // Pass live preview coordinates
+            onPageDimensionsChange={setReactPdfDimensions}
           />
         </div>
 
