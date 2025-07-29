@@ -1,4 +1,4 @@
 declare module 'trim-canvas' {
-    function trimCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement;
-    export default trimCanvas;
-  }
+  function trimCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement;
+  export default trimCanvas;
+}
